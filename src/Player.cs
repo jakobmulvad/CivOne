@@ -34,6 +34,15 @@ namespace CivOne
 		private IAdvance _currentResearch = null;
 
 		private int _destroyTurn = -1;
+		private bool _experimentalAI = false;
+
+		public bool ExperimentalAi
+		{
+			get
+			{
+				return _experimentalAI;
+			}
+		}
 
 		internal short StartX { get; set; }
 		
@@ -492,6 +501,9 @@ namespace CivOne
 				_explored[xx, yy] = false;
 				_visible[xx, yy] = false;
 			}
+
+			_experimentalAI = civilization is Civilizations.Roman || 
+				civilization is Civilizations.Russian;
 		}
 	}
 }

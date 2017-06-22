@@ -242,6 +242,13 @@ namespace CivOne
 		{
 			return Math.Max(Math.Abs(x1 - x2), Math.Abs(y1 - y2));
 		}
+
+		public static double TrueDistanceToTile(int x1, int y1, int x2, int y2)
+		{
+			double relX = x1-x2;
+			double relY = y1-y2;
+			return Math.Sqrt(relX*relX + relY*relY);
+		}
 		
 		public static byte BinaryReadByte(BinaryReader reader, int position)
 		{

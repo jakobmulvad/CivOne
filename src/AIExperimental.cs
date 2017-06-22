@@ -23,42 +23,8 @@ using Democratic = CivOne.Governments.Democracy;
 
 namespace CivOne
 {
-	internal class AI : BaseInstance
+	internal class AIExperimental : BaseInstance
 	{
-		private static void BarbarianMove(IUnit unit)
-		{
-			ITile[] tiles = unit.Tile.GetBorderTiles().Where(t => !t.IsOcean && t.Units.Any(u => u.Owner != 0)).ToArray();
-			if (tiles.Length == 0)
-			{
-				// No adjecent units found
-				if (unit.Class != UnitClass.Land) Game.DisbandUnit(unit);
-				if (Common.Random.Next(10) < 7)
-				{
-					for (int i = 0; i < 1000; i++)
-					{
-						int relX = Common.Random.Next(-1, 2);
-						int relY = Common.Random.Next(-1, 2);
-						if (relX == 0 && relY == 0) continue;
-						if (unit.Tile[relX, relY] is Ocean) continue;
-						unit.MoveTo(relX, relY);
-						return;
-					}
-				}
-				Game.DisbandUnit(unit);
-				return;
-			}
-			else
-			{
-				ITile moveTo = tiles[Common.Random.Next(tiles.Length)];
-				int relX = moveTo.X - unit.X;
-				int relY = moveTo.Y - unit.Y;
-				while (relX < -1) relX += 80;
-				while (relX > 1) relX -= 80;
-
-				unit.MoveTo(relX, relY);
-			}
-		}
-
 		internal static double getThreatLevelAt(int x, int y, byte playerNumber) {
 
 			if (Game.GetUnits(x, y).Any(u => u.Owner != playerNumber)) {
@@ -76,17 +42,6 @@ namespace CivOne
 		{
 			Player player = Game.GetPlayer(unit.Owner);
 
-			if (player.ExperimentalAi) {
-				AIExperimental.Move(unit);
-				return;
-			}
-
-			if (player.Civilization is Civilizations.Barbarian)
-			{
-				BarbarianMove(unit);
-				return;
-			}
-			
 			if (unit is Settlers)
 			{
 				ITile tile = unit.Tile;
@@ -122,13 +77,17 @@ namespace CivOne
 				}
 				else
 				{
-					var cityTiles = tile.GetBorderTiles()
+					var distanceToCityTiles = tile.GetBorderTiles()
 						.Where(x => !x.IsOcean)
 						.OrderBy(x => Game.GetCities().Min(c => Common.DistanceToTile(c.X, c.Y, x.X, x.Y)));
 
-					if (cityTiles.Count() > 0) {
-						unit.MoveTo(cityTiles.First().X, cityTiles.First().Y);
-						return;
+					if (distanceToCityTiles.Count() > 0) {
+						var distanceTile = distanceToCityTiles.First();
+
+						if (distanceTile != tile) {
+							unit.MoveTo(distanceToCityTiles.First().X, distanceToCityTiles.First().Y);
+							return;
+						}
 					}
 
 					/*switch (Common.Random.Next(5 * nearestOwnCity))
@@ -246,97 +205,15 @@ namespace CivOne
 						return;
 					}
 				}
-				unit.SkipTurn();
-				return;
 			}
+			unit.SkipTurn();
 		}
-
-		internal static void ChooseResearch(Player player)
-		{
-			if (player.CurrentResearch != null) return;
-			
-			IAdvance[] advances = player.AvailableResearch.ToArray();
-			
-			// No further research possible
-			if (advances.Length == 0) return;
-
-			player.CurrentResearch = advances[Common.Random.Next(0, advances.Length)];
-
-			Console.WriteLine($"AI: {player.LeaderName} of the {player.TribeNamePlural} starts researching {player.CurrentResearch.Name}.");
-		}
-
 		internal static void CityProduction(City city)
 		{
 			if (city == null || city.Size == 0 || city.Tile == null) return;
 
 			Player player = Game.GetPlayer(city.Owner);
-			if (player.ExperimentalAi) {
-				AIExperimental.CityProduction(city);
-				return;
-			}
 			IProduction production = null;
-
-			// Create 2 defensive units per city
-			if (player.HasAdvance<LaborUnion>())
-			{
-				if (city.Tile.Units.Count(x => x is MechInf) < 2) production = new MechInf();
-			}
-			else if (player.HasAdvance<Conscription>())
-			{
-				if (city.Tile.Units.Count(x => x is Riflemen) < 2) production = new Riflemen();
-			}
-			else if (player.HasAdvance<Gunpowder>())
-			{
-				if (city.Tile.Units.Count(x => x is Musketeers) < 2) production = new Musketeers();
-			}
-			else if (player.HasAdvance<BronzeWorking>())
-			{
-				if (city.Tile.Units.Count(x => x is Phalanx) < 2) production = new Phalanx();
-			}
-			else
-			{
-				if (city.Tile.Units.Count(x => x is Militia) < 2) production = new Militia();
-			}
-			
-			// Create city improvements
-			if (production == null)
-			{
-				if (!city.HasBuilding<Barracks>()) production = new Barracks();
-				else if (player.HasAdvance<Pottery>() && !city.HasBuilding<Granary>()) production = new Granary();
-				else if (player.HasAdvance<CeremonialBurial>() && !city.HasBuilding<Temple>()) production = new Temple();
-				else if (player.HasAdvance<Masonry>() && !city.HasBuilding<CityWalls>()) production = new CityWalls();
-			}
-
-			// Create Settlers
-			if (production == null)
-			{
-				if (city.Size > 3 && !city.Units.Any(x => x is Settlers) && player.Cities.Length < 10) production = new Settlers();
-			}
-
-			// Create some other unit
-			if (production == null)
-			{
-				if (city.Units.Length < 4)
-				{
-					if (player.Government is Republic || player.Government is Democratic)
-					{
-						if (player.HasAdvance<Writing>()) production = new Diplomat();
-					}
-					else 
-					{
-						if (player.HasAdvance<Automobile>()) production = new Armor();
-						else if (player.HasAdvance<Metallurgy>()) production = new Cannon();
-						else if (player.HasAdvance<Chivalry>()) production = new Knights();
-						else if (player.HasAdvance<TheWheel>()) production = new Chariot();
-						else if (player.HasAdvance<HorsebackRiding>()) production = new Cavalry();
-						else if (player.HasAdvance<IronWorking>()) production = new Legion();
-					}
-				}
-				else
-				{
-					if (player.HasAdvance<Trade>()) production = new Caravan();
-				}
-			}
 
 			// Set random production
 			if (production == null)
